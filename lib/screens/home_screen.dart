@@ -1,0 +1,316 @@
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:yandex_map/services/yandex_map_service.dart'
+    as YandexMapService; // Use a prefix for yandex_map_service.dart
+import 'package:yandex_mapkit/yandex_mapkit.dart'
+    hide SuggestItem; // Hide SuggestItem from yandex_mapkit.dart
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late YandexMapController mapController;
+  String currentLocationName = "";
+  List<MapObject> markers = [];
+  List<PolylineMapObject> polylines = [];
+  List<Point> positions = [];
+  Point? myLocation;
+  Point najotTalim = const Point(
+    latitude: 41.2856806,
+    longitude: 69.2034646,
+  );
+
+  void onMapCreated(YandexMapController controller) {
+    setState(() {
+      mapController = controller;
+
+      mapController.moveCamera(
+        animation: const MapAnimation(
+          type: MapAnimationType.smooth,
+          duration: 1,
+        ),
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: najotTalim,
+            zoom: 18,
+          ),
+        ),
+      );
+    });
+  }
+
+  void startTrackingLocation() {
+    Geolocator.getPositionStream().listen((Position position) {
+      setState(() {
+        myLocation =
+            Point(latitude: position.latitude, longitude: position.longitude);
+      });
+
+      if (positions.isNotEmpty) {
+        positions.removeLast();
+      }
+
+      positions.add(myLocation!);
+      updateRoute();
+    });
+  }
+
+  void updateRoute() async {
+    if (positions.length == 2) {
+      polylines =
+          await YandexMapService.getDirection(positions[0], positions[1]);
+    }
+
+    setState(() {});
+  }
+
+  void onCameraPositionChanged(
+    CameraPosition position,
+    CameraUpdateReason reason,
+    bool finish,
+  ) {
+    myLocation = position.target;
+    setState(() {});
+  }
+
+  void addMarkerAndRoute(Point destination) async {
+    if (myLocation != null) {
+      markers.add(
+        PlacemarkMapObject(
+          mapId: MapObjectId(UniqueKey().toString()),
+          point: destination,
+          opacity: 1,
+          icon: PlacemarkIcon.single(
+            PlacemarkIconStyle(
+              image: BitmapDescriptor.fromAssetImage("assets/location.png"),
+              scale: 0.5,
+            ),
+          ),
+        ),
+      );
+
+      polylines = await YandexMapService.getDirection(myLocation!, destination);
+
+      setState(() {});
+    }
+  }
+
+  void goToDestination() async {
+    Point destination = najotTalim; // O'zingizning manzilingizni belgilang
+    addMarkerAndRoute(destination);
+  }
+
+  void getMyCurrentLocation() async {
+    Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+    setState(() {
+      myLocation =
+          Point(latitude: position.latitude, longitude: position.longitude);
+      currentLocationName = "Mening joylashuvim"; // Qo'shimcha: Joylashuv nomi
+      markers.add(
+        PlacemarkMapObject(
+          mapId: MapObjectId("meningJoylashuvim"),
+          point: myLocation!,
+          icon: PlacemarkIcon.single(
+            PlacemarkIconStyle(
+              image: BitmapDescriptor.fromAssetImage("assets/location.png"),
+              scale: 0.5,
+            ),
+          ),
+        ),
+      );
+    });
+
+    mapController.moveCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: myLocation!, zoom: 18),
+      ),
+    );
+  }
+
+  void showPlaceSearch() async {
+    final result = await showSearch<YandexMapService.SuggestItem>(
+      // Specify the prefix for SuggestItem
+      context: context,
+      delegate: PlaceSearchDelegate(),
+    );
+
+    if (result != null) {
+      addMarkerAndRoute(result.point);
+      setState(() {
+        currentLocationName = result.name;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(currentLocationName),
+        actions: [
+          IconButton(
+            onPressed: showPlaceSearch,
+            icon: const Icon(Icons.search),
+          ),
+          IconButton(
+            onPressed: () {
+              mapController.moveCamera(
+                animation: const MapAnimation(
+                  type: MapAnimationType.smooth,
+                  duration: 1,
+                ),
+                CameraUpdate.zoomOut(),
+              );
+            },
+            icon: const Icon(Icons.remove_circle),
+          ),
+          IconButton(
+            onPressed: () {
+              mapController.moveCamera(
+                animation: const MapAnimation(
+                  type: MapAnimationType.smooth,
+                  duration: 1,
+                ),
+                CameraUpdate.zoomIn(),
+              );
+            },
+            icon: const Icon(Icons.add_circle),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          YandexMap(
+            onMapCreated: onMapCreated,
+            onCameraPositionChanged: onCameraPositionChanged,
+            mapType: MapType.map,
+            mapObjects: [
+              PlacemarkMapObject(
+                mapId: const MapObjectId("najotTalim"),
+                point: najotTalim,
+                opacity: 1,
+                icon: PlacemarkIcon.single(
+                  PlacemarkIconStyle(
+                    image: BitmapDescriptor.fromAssetImage(
+                        "assets/location_mark.png"),
+                    scale: 0.5,
+                  ),
+                ),
+              ),
+              ...markers,
+              PlacemarkMapObject(
+                mapId: const MapObjectId("meningJoylashuvim"),
+                point: myLocation ?? najotTalim,
+                icon: PlacemarkIcon.single(
+                  PlacemarkIconStyle(
+                    image:
+                        BitmapDescriptor.fromAssetImage("assets/location.png"),
+                    scale: 0.5,
+                  ),
+                ),
+              ),
+              PolylineMapObject(
+                mapId: const MapObjectId("UydanNajotTalimgacha"),
+                polyline: Polyline(
+                  points: [
+                    najotTalim,
+                    myLocation ?? najotTalim,
+                  ],
+                ),
+              ),
+              ...polylines,
+            ],
+          ),
+          const Align(
+            child: Icon(
+              Icons.place,
+              size: 60,
+              color: Colors.blue,
+            ),
+          ),
+          Positioned(
+            bottom: 45,
+            left: 10,
+            child: FloatingActionButton(
+              onPressed: getMyCurrentLocation,
+              child: const Icon(
+                Icons.person,
+                size: 30,
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          goToDestination();
+          startTrackingLocation();
+        },
+        child: const Icon(Icons.add_location),
+      ),
+    );
+  }
+}
+
+class PlaceSearchDelegate extends SearchDelegate<YandexMapService.SuggestItem> {
+  @override
+  List<Widget> buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.clear),
+        onPressed: () {
+          query = '';
+        },
+      ),
+    ];
+  }
+
+  @override
+  Widget buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () {},
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) {
+    return FutureBuilder<List<YandexMapService.SuggestItem>>(
+      future: YandexMapService.searchPlace(query),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('Hech narsa topilmadi'));
+        }
+
+        final results = snapshot.data!;
+
+        return ListView.builder(
+          itemCount: results.length,
+          itemBuilder: (context, index) {
+            final suggestion = results[index];
+            return ListTile(
+              title: Text(suggestion.name),
+              onTap: () {
+                close(context, suggestion);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    return Container();
+  }
+}
