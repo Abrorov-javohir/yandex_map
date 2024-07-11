@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_polyline_points/flutter_polyline_points.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps/google_maps.dart';
 import 'package:http/http.dart' as http;
 import 'package:location/location.dart';
 
@@ -81,8 +81,8 @@ class LocationService {
     final result = await polylinePoints.getRouteBetweenCoordinates(
       googleApiKey: _apiKey,
       request: PolylineRequest(
-        origin: PointLatLng(from.latitude, from.longitude),
-        destination: PointLatLng(to.latitude, to.longitude),
+        origin: PointLatLng(123456, 45331),
+        destination: PointLatLng(123456, 45331),
         mode: TravelMode.walking,
       ),
     );

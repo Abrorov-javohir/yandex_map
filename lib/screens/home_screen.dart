@@ -43,31 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void startTrackingLocation() {
-    Geolocator.getPositionStream().listen((Position position) {
-      setState(() {
-        myLocation =
-            Point(latitude: position.latitude, longitude: position.longitude);
-      });
-
-      if (positions.isNotEmpty) {
-        positions.removeLast();
-      }
-
-      positions.add(myLocation!);
-      updateRoute();
-    });
-  }
-
-  void updateRoute() async {
-    if (positions.length == 2) {
-      polylines =
-          await YandexMapService.getDirection(positions[0], positions[1]);
-    }
-
-    setState(() {});
-  }
-
   void onCameraPositionChanged(
     CameraPosition position,
     CameraUpdateReason reason,
@@ -100,17 +75,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void goToDestination() async {
-    Point destination = najotTalim; // O'zingizning manzilingizni belgilang
+    Point destination = najotTalim;  // O'zingizning manzilingizni belgilang
     addMarkerAndRoute(destination);
   }
 
   void getMyCurrentLocation() async {
-    Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
+    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
     setState(() {
-      myLocation =
-          Point(latitude: position.latitude, longitude: position.longitude);
-      currentLocationName = "Mening joylashuvim"; // Qo'shimcha: Joylashuv nomi
+      myLocation = Point(latitude: position.latitude, longitude: position.longitude);
+      currentLocationName = "Mening joylashuvim";  // Qo'shimcha: Joylashuv nomi
       markers.add(
         PlacemarkMapObject(
           mapId: MapObjectId("meningJoylashuvim"),
@@ -132,19 +105,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void showPlaceSearch() async {
-    final result = await showSearch<YandexMapService.SuggestItem>(
-      // Specify the prefix for SuggestItem
-      context: context,
-      delegate: PlaceSearchDelegate(),
-    );
-
-    if (result != null) {
-      addMarkerAndRoute(result.point);
+  void startTrackingLocation() {
+    Geolocator.getPositionStream().listen((Position position) {
       setState(() {
-        currentLocationName = result.name;
+        myLocation = Point(latitude: position.latitude, longitude: position.longitude);
       });
+
+      if (positions.isNotEmpty) {
+        positions.removeLast();
+      }
+
+      positions.add(myLocation!);
+      updateRoute();
+    });
+  }
+
+  void updateRoute() async {
+    if (positions.length == 2) {
+      polylines = await YandexMapService.getDirection(positions[0], positions[1]);
     }
+
+    setState(() {});
   }
 
   @override
@@ -154,7 +135,10 @@ class _HomeScreenState extends State<HomeScreen> {
         title: Text(currentLocationName),
         actions: [
           IconButton(
-            onPressed: showPlaceSearch,
+            onPressed: () async {
+              TextField(currentLocationName = await YandexMapService.searchPlace(myLocation!);
+              setState(() {}));
+            },
             icon: const Icon(Icons.search),
           ),
           IconButton(
@@ -196,8 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 opacity: 1,
                 icon: PlacemarkIcon.single(
                   PlacemarkIconStyle(
-                    image: BitmapDescriptor.fromAssetImage(
-                        "assets/location_mark.png"),
+                    image: BitmapDescriptor.fromAssetImage("assets/location_mark.png"),
                     scale: 0.5,
                   ),
                 ),
@@ -208,8 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 point: myLocation ?? najotTalim,
                 icon: PlacemarkIcon.single(
                   PlacemarkIconStyle(
-                    image:
-                        BitmapDescriptor.fromAssetImage("assets/location.png"),
+                    image: BitmapDescriptor.fromAssetImage("assets/location.png"),
                     scale: 0.5,
                   ),
                 ),
@@ -254,63 +236,5 @@ class _HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.add_location),
       ),
     );
-  }
-}
-
-class PlaceSearchDelegate extends SearchDelegate<YandexMapService.SuggestItem> {
-  @override
-  List<Widget> buildActions(BuildContext context) {
-    return [
-      IconButton(
-        icon: const Icon(Icons.clear),
-        onPressed: () {
-          query = '';
-        },
-      ),
-    ];
-  }
-
-  @override
-  Widget buildLeading(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back),
-      onPressed: () {},
-    );
-  }
-
-  @override
-  Widget buildResults(BuildContext context) {
-    return FutureBuilder<List<YandexMapService.SuggestItem>>(
-      future: YandexMapService.searchPlace(query),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('Hech narsa topilmadi'));
-        }
-
-        final results = snapshot.data!;
-
-        return ListView.builder(
-          itemCount: results.length,
-          itemBuilder: (context, index) {
-            final suggestion = results[index];
-            return ListTile(
-              title: Text(suggestion.name),
-              onTap: () {
-                close(context, suggestion);
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  @override
-  Widget buildSuggestions(BuildContext context) {
-    return Container();
   }
 }
